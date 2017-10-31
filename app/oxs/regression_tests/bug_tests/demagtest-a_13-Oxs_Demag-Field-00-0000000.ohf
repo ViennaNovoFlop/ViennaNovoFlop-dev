@@ -1,0 +1,42 @@
+# OOMMF OVF 2.0
+#
+# Segment count: 1
+#
+# Begin: Segment
+# Begin: Header
+#
+# title: Oxs_Demag::Field
+# meshtype: rectangular
+# meshunit: m
+# xmin: 0
+# ymin: 0
+# zmin: 0
+# xmax: 2.0000000000000001e-09
+# ymax: 4.0000000000000002e-09
+# zmax: 3e-09
+# valuedim: 3
+# valuelabels: Field_x Field_y Field_z
+# valueunits: A/m A/m A/m
+# desc: Oxs vector field output
+# desc:  MIF source file: /home/donahue/tmp/yyy/oommf/app/oxs/regression_tests/bug_tests/demagtest-a.mif
+# desc:  Iteration: 0, State id: 17
+# desc:  Stage: 0, Stage iteration: 0
+# desc:  Stage simulation time: 0 s
+# desc:  Total simulation time: 0 s
+# xbase: 5.0000000000000003e-10
+# ybase: 1.0000000000000001e-09
+# zbase: 1.5e-09
+# xnodes: 2
+# ynodes: 2
+# znodes: 1
+# xstepsize: 1.0000000000000001e-09
+# ystepsize: 2.0000000000000001e-09
+# zstepsize: 3e-09
+#
+# End: Header
+#
+# Begin: Data Binary 8
+@Þwƒ!ÜBï¯K‚AÔãUò­Ú@*© JÎ÷Ê@hÇàÜq
+A×Ö)¾€jò@*© JÎ÷Ê@hÇàÜq
+A×Ö)¾€jò@*© JÎ÷Ê@ï¯K‚AÔãUò­Ú@*© JÎ÷Ê@# End: Data Binary 8
+# End: Segment

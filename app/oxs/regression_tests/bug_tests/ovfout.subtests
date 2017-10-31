@@ -1,0 +1,6 @@
+evolver RKF scalar_format "%#.17g"   field_style  binary   field_precision 8
+evolver RKF scalar_format "%#10.4g"  field_style  binary   field_precision 4
+evolver RKF scalar_format "%#.12g"   field_style  text     field_precision "%#12.4g"
+evolver CG  scalar_format "%#.17g"   field_style  binary   field_precision 8
+evolver CG  scalar_format "%#10.4g"  field_style  binary   field_precision 4
+evolver CG  scalar_format "%#.12g"   field_style  text     field_precision "%#12.4g"

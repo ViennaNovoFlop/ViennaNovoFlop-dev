@@ -1,0 +1,2 @@
+/home/windbach/oommf/oommf_parallel/lib/teapot
+/home/windi/ViennaNovoFlop/ViennaNovoFlop-dev/lib/teapot

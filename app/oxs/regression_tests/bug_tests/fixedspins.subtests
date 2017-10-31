@@ -1,0 +1,8 @@
+solver  euler
+solver  rk2
+solver  rk2heun
+solver  rk4
+solver  rkf54
+solver  rkf54m
+solver  rkf54s
+solver  cg

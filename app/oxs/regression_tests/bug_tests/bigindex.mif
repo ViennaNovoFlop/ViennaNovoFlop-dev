@@ -1,0 +1,167 @@
+# MIF 2.1
+# MIF Test file: bigindex.mif
+# Description: Tests indexing into arrays having size too big to be
+#              indexed by a 4-byte int.
+# Note: Because of zero padding and other handling issues, the
+#   Oxs_Demag code bumps up against this limit with lower spin counts
+#   than the rest of the code.
+#
+# Note: The no-demag portion needs larger cell counts than specified
+#   below, but to test would require more than 128 GB of memory, which
+#   is the max I (mjd) currently have access to.  So at present (Mar
+#   2010) just treat the no-demag as place-holders.
+
+set pi [expr 4*atan(1.0)]
+set mu0 [expr 4*$pi*1e-7]
+
+RandomSeed 1
+
+Parameter test ;# Should be number, 0 - ?
+
+Parameter itlimit 2
+
+switch -- $test {
+    0 {
+       set xcount 2000; set ycount 1000; set zcount 50;
+       set demagtest 1
+       set extras 1
+       set solver cg
+    }
+    1 {
+       set xcount 2000; set ycount 1050; set zcount 35;
+       set demagtest 2
+       set extras 0
+       set solver cg
+    }
+    2 {
+       set xcount 6000; set ycount 2000; set zcount 100;
+       set demagtest 0
+       set extras 1
+       set solver cg
+    }
+    3 {
+       set xcount 6000; set ycount 2000; set zcount 100;
+       set demagtest 0
+       set extras 1
+       set solver rk
+    }
+    4 {
+       set xcount 6000; set ycount 2000; set zcount 100;
+       set demagtest 0
+       set extras 1
+       set solver euler
+    }
+}
+
+Parameter xcellsize 1e-9
+Parameter ycellsize 2e-9
+Parameter zcellsize 3e-9
+
+set xrange [expr {$xcount*$xcellsize}]
+set yrange [expr {$ycount*$ycellsize}]
+set zrange [expr {$zcount*$zcellsize}]
+
+if {0} {
+   proc Ellipsoid { x y z } {
+      set x [expr {2.*$x-1.}]
+      set y [expr {2.*$y-1.}]
+      set z [expr {2.*$z-1.}]
+      if {$x*$x+$y*$y+$z*$z>=1} {
+         return 1
+      }
+      return 2
+   }
+   set shapeproc Ellipsoid
+   Specify Oxs_ScriptAtlas:atlas [subst {
+      xrange {0 [expr {$xcount*$xcellsize}]}
+      yrange {0 [expr {$ycount*$ycellsize}]}
+      zrange {0 [expr {$zcount*$zcellsize}]}
+      regions {nonmagnetic magnetic}
+      script $shapeproc
+   }]
+} else {
+   Specify Oxs_EllipsoidAtlas:atlas [subst {
+      xrange {0 [expr {$xcount*$xcellsize}]}
+      yrange {0 [expr {$ycount*$ycellsize}]}
+      zrange {0 [expr {$zcount*$zcellsize}]}
+      name magnetic
+   }]
+}
+
+Specify Oxs_RectangularMesh:mesh [subst {
+  cellsize {$xcellsize $ycellsize $zcellsize}
+  atlas :atlas
+}]
+
+if {$demagtest==1} {
+   Specify Oxs_Demag {}
+} elseif {$demagtest==2} {
+   Specify Oxs_DemagOld {}
+}
+
+if {$extras} {
+   Specify Oxs_UniaxialAnisotropy {
+      K1  500
+      axis {0.1 0.2 0.3}
+   }
+
+   Specify Oxs_CubicAnisotropy {
+      K1  -4.5e3
+      axis1 {1 0 1}
+      axis2 {0 1 0}
+   }
+
+   Specify Oxs_UniformExchange {
+      A  9e-12
+   }
+
+   Specify Oxs_Exchange6Ngbr {
+      default_A 0.0
+      atlas :atlas
+      A {
+         magnetic magnetic 13e-12
+      }
+   }
+}
+
+Specify Oxs_UZeeman [subst {
+  multiplier [expr {0.001/$mu0}]
+  Hrange {
+     { 100   1   0  -100   0   0   2 }
+  }
+}]
+
+if {[string match cg $solver]} {
+   Specify Oxs_CGEvolve:evolve {}
+   Specify Oxs_MinDriver [subst {
+      evolver :evolve
+      stopping_mxHxm 0.1
+      stage_iteration_limit $itlimit
+      mesh :mesh
+      Ms 500e3
+      m0 {-1 -0.5 -0.1 }
+   }]
+} else {
+   if {[string match rk $solver]} {
+      Specify Oxs_RungeKuttaEvolve:evolve {}
+   }
+   if {[string match euler $solver]} {
+      Specify Oxs_EulerEvolve:evolve {}
+   }
+   Specify Oxs_TimeDriver [subst {
+      evolver :evolve
+      stopping_dm_dt 0.1
+      stage_iteration_limit $itlimit
+      mesh :mesh
+      Ms 500e3
+      m0 {-1 -0.5 -0.1 }
+      comment { m0 { Oxs_RandomVectorField {
+         min_norm 1.0
+         max_norm 1.0
+      }}}
+   }]
+}
+
+Destination archive mmArchive
+Schedule DataTable archive Step 1
+

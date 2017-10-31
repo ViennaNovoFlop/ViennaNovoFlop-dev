@@ -1,0 +1,34 @@
+xcount  1
+xcount  2
+xcount  3
+xcount  4
+xcount  5
+xcount  6
+xcount  7
+xcount  8
+xcount 10
+ycount  1
+ycount  2
+ycount  3
+ycount  4
+ycount  5
+ycount  6
+ycount  7
+ycount  8
+ycount 10
+zcount  1
+zcount  2
+zcount  3
+zcount  4
+zcount  5
+zcount  6
+zcount  7
+zcount  8
+zcount 10
+xcount  1  ycount 1 zcount 1
+xcount  2  ycount 1 zcount 1
+xcount  1  ycount 2 zcount 1
+xcount  1  ycount 1 zcount 2
+xcount  2  ycount 2 zcount 2
+xcount  3  ycount 3 zcount 3
+xcount 55  ycount 37 zcount 12

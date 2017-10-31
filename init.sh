@@ -1,0 +1,15 @@
+#!/bin/bash
+export TCL_LIBRARY=$PWD/lib 
+echo TCL_LIBRARY=$TCL_LIBRARY 
+export TK_LIBRARY=$PWD/lib 
+echo TK_LIBRARY=$TK_LIBRARY 
+export OOMMF_TCL_CONFIG=$PWD/lib/tclConfig.sh 
+echo OOMMF_TCL_CONFIG=$OOMMF_TCL_CONFIG 
+export OOMMF_TK_CONFIG=$PWD/lib/tkConfig.sh 
+echo OOMMF_TK_CONFIG=$OOMMF_TK_CONFIG 
+export OOMMF_TCLSH=$PWD/bin/tclsh 
+echo OOMMF_TCLSH=$OOMMF_TCLSH 
+export OOMMF_TCL=$PWD/bin 
+echo OOMMF_TCL=$OOMMF_TCL 
+export OOMMF_WISH=$PWD/bin/wish 
+echo OOMMF_WISH=$OOMMF_WISH 

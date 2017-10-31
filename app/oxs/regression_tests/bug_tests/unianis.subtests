@@ -1,0 +1,72 @@
+integ rect
+integ rect   xcount  1
+integ rect   xcount  2
+integ rect   xcount  3
+integ rect   xcount  4
+integ rect   xcount  5
+integ rect   xcount  6
+integ rect   xcount  7
+integ rect   xcount  8
+integ rect   xcount 10
+integ rect   ycount  1
+integ rect   ycount  2
+integ rect   ycount  3
+integ rect   ycount  4
+integ rect   ycount  5
+integ rect   ycount  6
+integ rect   ycount  7
+integ rect   ycount  8
+integ rect   ycount 10
+integ rect   zcount  1
+integ rect   zcount  2
+integ rect   zcount  3
+integ rect   zcount  4
+integ rect   zcount  5
+integ rect   zcount  6
+integ rect   zcount  7
+integ rect   zcount  8
+integ rect   zcount 10
+integ rect   xcount  1  ycount 1 zcount 1
+integ rect   xcount  2  ycount 1 zcount 1
+integ rect   xcount  1  ycount 2 zcount 1
+integ rect   xcount  1  ycount 1 zcount 2
+integ rect   xcount  2  ycount 2 zcount 2
+integ rect   xcount  3  ycount 3 zcount 3
+integ quad
+integ quad  xcount  1
+integ quad  xcount  2
+integ quad  xcount  3
+integ quad  xcount  4
+integ quad  xcount  5
+integ quad  xcount  6
+integ quad  xcount  7
+integ quad  xcount  8
+integ quad  xcount 10
+integ quad  ycount  1
+integ quad  ycount  2
+integ quad  ycount  3
+integ quad  ycount  4
+integ quad  ycount  5
+integ quad  ycount  6
+integ quad  ycount  7
+integ quad  ycount  8
+integ quad  ycount 10
+integ quad  zcount  1
+integ quad  zcount  2
+integ quad  zcount  3
+integ quad  zcount  4
+integ quad  zcount  5
+integ quad  zcount  6
+integ quad  zcount  7
+integ quad  zcount  8
+integ quad  zcount 10
+integ quad  xcount  1  ycount 1 zcount 1
+integ quad  xcount  2  ycount 1 zcount 1
+integ quad  xcount  1  ycount 2 zcount 1
+integ quad  xcount  1  ycount 1 zcount 2
+integ quad  xcount  2  ycount 2 zcount 2
+integ quad  xcount  3  ycount 3 zcount 3
+integ quad  xcount  4  ycount 4 zcount 4
+integ quad  xcount  5  ycount 5 zcount 5
+integ quad  xcount  6  ycount 6 zcount 6
+integ quad  xcount  7  ycount 7 zcount 7

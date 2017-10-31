@@ -1,0 +1,18 @@
+log {Welcome to the ActiveState ActiveTcl 8.5.12.0.296033 distribution for Linux/x86_64.}
+log { }
+log {Package Management: *new*}
+log {	TEAcup, the TEApot Repository Client}
+log { }
+log {Packages:}
+log {	Tcl	8.5	Thread	2.6.5}
+log {	Tk	8.5	trofs	0.4.4}
+log { }
+log {	ActiveTcl 8.5 is compatible with most ActiveTcl 8.4 packages.}
+log* {	More packages can be obtained with the teacup} {emphasis}
+log                                                 {, or by installing this}
+log {	distribution into the same directory as an existing ActiveTcl 8.4}
+log {	installation.}
+log { }
+log {Using ActiveTcl at work?}
+log { }
+log {Our ActiveTcl Enterprise business solution is a support and maintenance package for organizations of all sizes that depend on Tcl.  Safeguard your applications with guaranteed, quality-assured ActiveTcl binaries and mitigate risk with world-class support for your critical Tcl systems.}

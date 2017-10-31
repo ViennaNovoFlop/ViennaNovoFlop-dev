@@ -1,0 +1,191 @@
+# MIF 2.1
+# MIF Test file: demagtest-a.mif
+# Description: Checks special array size handling.
+
+set pi [expr 4*atan(1.0)]
+set mu0 [expr 4*$pi*1e-7]
+
+RandomSeed 1
+
+Parameter code  ;# Should be either "new" or "old"
+
+Parameter test ;# Should be number, 0 - ?
+
+Parameter arad 32  ;# Asymptotic radius, in max cellsize units.
+## Set to -1 to disable use of asymptotic formulae.
+
+Parameter itlimit 1
+
+switch -- $test {
+    0 { set xrange 1; set yrange 1; set zrange 1; }
+    1 { set xrange 2; set yrange 1; set zrange 1; }
+    2 { set xrange 1; set yrange 2; set zrange 1; }
+    3 { set xrange 4; set yrange 1; set zrange 1; }
+    4 { set xrange 1; set yrange 4; set zrange 1; }
+    5 { set xrange 1; set yrange 1; set zrange 4; }
+    6 { set xrange 1; set yrange 1; set zrange 2; }
+    7 { set xrange 1; set yrange 2; set zrange 2; }
+    8 { set xrange 2; set yrange 1; set zrange 2; }
+    9 { set xrange 2; set yrange 2; set zrange 1; }
+   10 { set xrange 2; set yrange 2; set zrange 2; }
+   11 { set xrange 2; set yrange 3; set zrange 4; }
+   12 { set xrange 4; set yrange 3; set zrange 2; }
+   13 { set xrange  40; set yrange 20; set zrange  4; }
+   14 { set xrange   4; set yrange 40; set zrange 20; }
+   15 { set xrange  20; set yrange  4; set zrange 40; }
+   16 { set xrange 200; set yrange 90; set zrange  1; }
+   17 { set xrange    5; set yrange 8; set zrange 8; }
+   18 { set xrange    8; set yrange 8; set zrange 8; }
+   19 { set xrange   15; set yrange 8; set zrange 8; }
+   20 { set xrange   16; set yrange 8; set zrange 8; }
+   21 { set xrange   17; set yrange 8; set zrange 8; }
+   22 { set xrange   32; set yrange 8; set zrange 8; }
+   23 { set xrange   33; set yrange 8; set zrange 8; }
+   24 { set xrange   63; set yrange 8; set zrange 8; }
+   25 { set xrange   64; set yrange 8; set zrange 8; }
+   26 { set xrange   65; set yrange 8; set zrange 8; }
+   27 { set xrange  127; set yrange 8; set zrange 8; }
+   28 { set xrange  128; set yrange 8; set zrange 8; }
+   29 { set xrange  129; set yrange 8; set zrange 8; }
+   30 { set xrange  255; set yrange 8; set zrange 8; }
+   31 { set xrange  256; set yrange 8; set zrange 8; }
+   32 { set xrange  257; set yrange 8; set zrange 8; }
+   33 { set xrange  511; set yrange 8; set zrange 8; }
+   34 { set xrange  512; set yrange 8; set zrange 8; }
+   35 { set xrange  513; set yrange 8; set zrange 8; }
+   36 { set xrange 1024; set yrange 8; set zrange 8; }
+   37 { set xrange 8; set yrange    5; set zrange 8; }
+   38 { set xrange 8; set yrange    8; set zrange 8; }
+   39 { set xrange 8; set yrange   15; set zrange 8; }
+   40 { set xrange 8; set yrange   16; set zrange 8; }
+   41 { set xrange 8; set yrange   17; set zrange 8; }
+   42 { set xrange 8; set yrange   32; set zrange 8; }
+   43 { set xrange 8; set yrange   33; set zrange 8; }
+   44 { set xrange 8; set yrange   63; set zrange 8; }
+   45 { set xrange 8; set yrange   64; set zrange 8; }
+   46 { set xrange 8; set yrange   65; set zrange 8; }
+   47 { set xrange 8; set yrange  127; set zrange 8; }
+   48 { set xrange 8; set yrange  128; set zrange 8; }
+   49 { set xrange 8; set yrange  129; set zrange 8; }
+   50 { set xrange 8; set yrange  255; set zrange 8; }
+   51 { set xrange 8; set yrange  256; set zrange 8; }
+   52 { set xrange 8; set yrange  257; set zrange 8; }
+   53 { set xrange 8; set yrange  511; set zrange 8; }
+   54 { set xrange 8; set yrange  512; set zrange 8; }
+   55 { set xrange 8; set yrange  513; set zrange 8; }
+   56 { set xrange 8; set yrange 1024; set zrange 8; }
+   57 { set xrange 8; set yrange 8; set zrange    5; }
+   58 { set xrange 8; set yrange 8; set zrange    8; }
+   59 { set xrange 8; set yrange 8; set zrange   15; }
+   60 { set xrange 8; set yrange 8; set zrange   16; }
+   61 { set xrange 8; set yrange 8; set zrange   17; }
+   62 { set xrange 8; set yrange 8; set zrange   32; }
+   63 { set xrange 8; set yrange 8; set zrange   33; }
+   64 { set xrange 8; set yrange 8; set zrange   63; }
+   65 { set xrange 8; set yrange 8; set zrange   64; }
+   66 { set xrange 8; set yrange 8; set zrange   65; }
+   67 { set xrange 8; set yrange 8; set zrange  127; }
+   68 { set xrange 8; set yrange 8; set zrange  128; }
+   69 { set xrange 8; set yrange 8; set zrange  129; }
+   70 { set xrange 8; set yrange 8; set zrange  255; }
+   71 { set xrange 8; set yrange 8; set zrange  256; }
+   72 { set xrange 8; set yrange 8; set zrange  257; }
+   73 { set xrange 8; set yrange 8; set zrange  511; }
+   74 { set xrange 8; set yrange 8; set zrange  512; }
+   75 { set xrange 8; set yrange 8; set zrange  513; }
+   76 { set xrange 8; set yrange 8; set zrange 1024; }
+}
+
+Parameter xcellsize 1e-9
+Parameter ycellsize 2e-9
+Parameter zcellsize 3e-9
+
+set xrange [expr {$xrange*$xcellsize}]
+set yrange [expr {$yrange*$ycellsize}]
+set zrange [expr {$zrange*$zcellsize}]
+
+Specify Oxs_BoxAtlas:atlas [subst {
+  xrange {0 $xrange}
+  yrange {0 $yrange}
+  zrange {0 $zrange}
+}]
+
+Specify Oxs_RectangularMesh:mesh [subst {
+  cellsize {$xcellsize $ycellsize $zcellsize}
+  atlas :atlas
+}]
+
+Specify Oxs_CubicAnisotropy {
+  K1  -4.5e3
+  axis1 {1 0 0}
+  axis2 {0 1 0}
+}
+
+# NOTE: In the preceding Oxs_CubicAnisotropy Specify block, K1, axis1
+# and axis2 are all described above via implicit Oxs_UniformScalarField
+# and Oxs_UniformVectorField objects.  That block is *exactly*
+# equivalent to
+#
+#   Specify Oxs_CubicAnisotropy {
+#     K1  { Oxs_UniformScalarField {
+#              value -4.5e3
+#     }}
+#     axis1 { Oxs_UniformVectorField {
+#              vector {1 0 0}
+#     }}
+#     axis2 { Oxs_UniformVectorField {
+#              vector {0 1 0}
+#     }}
+#   }
+#
+# Any of the other Scalar/Vector field objects may be used to initialize
+# K1, axis1 and axis2 in place of the Uniform variety.
+#
+# IN CONTRAST, in the following Specify block, for Oxs_UniformExchange,
+# A is an actual scalar, not a scalar field, so it can only be
+# initialized via an actual constant.  Use the Oxs_6NgbrExchange or
+# Oxs_PtwiseExchange classes if you need the exchange stiffness to
+# spatially vary.
+
+Specify Oxs_UniformExchange {
+   A  9e-12  comment {A here is a single scalar, not a scalar field}
+}
+
+Specify Oxs_UZeeman [subst {
+  multiplier [expr {0.001/$mu0}]
+  Hrange {
+     {   0   0   0   100   1   0   2 }
+     { 100   1   0  -100   0   0   2 }
+     {   0   0   0     0 100   0   4 }
+     {  10  10  10    50  50  50   0 }
+  }
+}]
+
+Destination archive mmArchive
+if {[string match "new" $code]} {
+   Specify Oxs_Demag [subst {
+      asymptotic_radius $arad
+   }]
+   Schedule Oxs_Demag::Field archive step 100
+} else {
+   Specify Oxs_DemagOld {}
+   Schedule Oxs_DemagOld::Field archive step 100
+}
+Schedule DataTable archive Step 1
+
+Specify Oxs_RungeKuttaEvolve:evolve {}
+
+Specify Oxs_TimeDriver [subst {
+ basename demagtest-a_test${test}_
+ evolver :evolve
+ stopping_dm_dt 0.1
+ mesh :mesh
+ Ms 500e3
+ m0 {-1 -0.5 -0.1 }
+ total_iteration_limit $itlimit
+}]
+
+# Ms and m0 above may be initialized using any Scalar/Vector field
+# objects.  See the comment following the Oxs_CubicAnisotropy Specify
+# block above.
+

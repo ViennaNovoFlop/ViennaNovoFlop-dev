@@ -1,0 +1,3 @@
+outer_check 1 proc_check 0
+outer_check 0 proc_check 1
+outer_check 1 proc_check 1

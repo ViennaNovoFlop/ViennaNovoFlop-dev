@@ -1,0 +1,12 @@
+Package math::statistics 0.8.0
+Meta as::build::date 2013-08-13
+Meta as::origin      http://sourceforge.net/projects/tcllib
+Meta category        Tcl Math Library
+Meta description     Basic statistical functions and procedures
+Meta license         BSD
+Meta platform        tcl
+Meta require         {Tcl 8.4}
+Meta require         math
+Meta require         {math::linearalgebra 1.0}
+Meta subject         mathematics {data analysis} statistics
+Meta summary         math::statistics

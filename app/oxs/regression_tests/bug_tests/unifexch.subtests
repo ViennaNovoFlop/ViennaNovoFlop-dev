@@ -1,0 +1,30 @@
+kernel 6ngbrfree           zcount  1
+kernel 6ngbrfree           zcount 23
+kernel 6ngbrmirror         zcount  1    exchtype  A
+kernel 6ngbrmirror         zcount 23    exchtype  A
+kernel 6ngbrmirror         zcount  1    exchtype  lex
+kernel 6ngbrmirror         zcount 23    exchtype  lex
+kernel 6ngbrmirror_std     zcount  1
+kernel 6ngbrmirror_std     zcount 23
+kernel 6ngbrbigangmirror   zcount  1
+kernel 6ngbrbigangmirror   zcount 23
+kernel 6ngbrzd2            zcount  1
+kernel 6ngbrzd2            zcount 23
+kernel 12ngbrfree          zcount  1
+kernel 12ngbrfree          zcount 23
+kernel 12ngbrfree          zcount 10
+kernel 12ngbrfree          zcount 11
+kernel 12ngbrzd1           zcount  1
+kernel 12ngbrzd1           zcount 23
+kernel 12ngbrzd1           zcount 10
+kernel 12ngbrzd1           zcount 11
+kernel 12ngbrzd1b          zcount  1
+kernel 12ngbrzd1b          zcount 23
+kernel 12ngbrzd1b          zcount  5
+kernel 12ngbrzd1b          zcount  6
+kernel 12ngbrmirror        zcount  1
+kernel 12ngbrmirror        zcount 23
+kernel 26ngbr              zcount  1
+kernel 26ngbr              zcount 23
+kernel 6ngbrmirror         zcount 23    exchtype  A     shape random
+kernel 6ngbrmirror         zcount 23    exchtype  lex   shape random

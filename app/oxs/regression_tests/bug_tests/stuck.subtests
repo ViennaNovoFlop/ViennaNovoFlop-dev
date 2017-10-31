@@ -1,0 +1,26 @@
+solver euler        mnoise  0.0  stopping_time 1e-14
+solver euler        mnoise  0.1  stopping_time 1e-16
+solver rkf54        mnoise  0.0
+solver rkf54        mnoise  0.1
+solver rkf54s       mnoise  0.0
+solver rkf54s       mnoise  0.1
+solver rkf54m       mnoise  0.0
+solver rkf54m       mnoise  0.1
+solver rk4          mnoise  0.0
+solver rk4          mnoise  0.1
+solver rk2          mnoise  0.0
+solver rk2          mnoise  0.1   stopping_time 1e-14
+solver rk2heun      mnoise  0.0
+solver rk2heun      mnoise  0.1   stopping_time 1e-14
+solver srkf54       mnoise  0.0
+solver srkf54       mnoise  0.1
+solver srkf54s      mnoise  0.0
+solver srkf54s      mnoise  0.1
+solver srkf54m      mnoise  0.0
+solver srkf54m      mnoise  0.1
+solver srk4         mnoise  0.0
+solver srk4         mnoise  0.1
+solver srk2         mnoise  0.0
+solver srk2         mnoise  0.1   stopping_time 1e-14
+solver srk2heun     mnoise  0.0
+solver srk2heun     mnoise  0.1   stopping_time 1e-14

@@ -1,0 +1,11 @@
+Package math 1.2.5
+Meta as::build::date 2013-08-13
+Meta as::origin      http://sourceforge.net/projects/tcllib
+Meta category        Tcl Math Library Tcl Math Library
+Meta description     Tcl Math Library Combinatorial functions in the Tcl
+Meta description     Math Library
+Meta license         BSD
+Meta platform        tcl
+Meta require         {Tcl 8.0}
+Meta subject         math statistics
+Meta summary         math math::combinatorics

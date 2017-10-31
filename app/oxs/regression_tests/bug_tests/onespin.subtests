@@ -1,0 +1,15 @@
+solver rkf54   timestep 10e-12
+solver rkf54   timestep 0
+solver rkf54s  timestep 10e-12
+solver rkf54s  timestep 0
+solver rkf54m  timestep 10e-12
+solver rkf54m  timestep 0
+solver srkf54  timestep 10e-12
+solver srkf54  timestep 0
+solver srkf54s timestep 10e-12
+solver srkf54s timestep 0
+solver srkf54m timestep 10e-12
+solver srkf54m timestep 0
+solver euler   timestep 10e-12
+solver euler   timestep 0
+solver cgevolve

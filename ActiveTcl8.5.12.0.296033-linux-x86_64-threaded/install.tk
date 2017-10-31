@@ -1,0 +1,1373 @@
+# -*- tcl -*-
+# Main installation script for ActiveTcl
+# --------------------------------------
+#
+# Copyright 2001-2008, ActiveState Software Inc.
+# All Rights Reserved.
+
+package require Tcl 8.4
+
+global argv argc
+set pargv $argv ; set argv {} ; set argc 0
+
+foreach d $auto_path {
+    foreach a [glob -nocomplain -directory $d P-*] {
+	lappend auto_path $a
+    }
+}
+
+lappend auto_path [file join [file dirname [info script]] lib]
+
+# Uses labelframe and other 8.4+ widgets
+package require Tk 8.4
+wm withdraw .
+
+proc abortretryignore {msg} {
+    set b [tk_messageBox \
+	       -parent . \
+	       -type abortretryignore \
+	       -icon question \
+	       -default no \
+	       -title "Abort, retry, ignore?" \
+	       -message "$msg"]
+    return $b
+}
+
+set ::CONFIRM 1
+proc cancel {} {
+    if {!$::CONFIRM ||
+	[tk_messageBox -parent . -type yesno -icon question \
+	     -default no -title "Cancel Installation?" \
+	     -message "Are you sure you want to cancel installation?"] \
+	    == "yes"} {
+	exit 0
+    }
+}
+
+# Create something that says "we're working" ASAP if we are in a starkit
+# This provides something to distract folks while we load stuff
+# out of the base kit
+proc working {} {
+    set t [toplevel .working]
+    wm withdraw $t
+    wm protocol $t WM_DELETE_WINDOW exit
+    wm title $t "Loading installation ..."
+
+    if {$::tcl_version > 8.4} {
+	ttk::label $t.msg -text "Loading installation from archive ..." \
+	    -font {Helvetica 14}
+	ttk::button $t.btn -text "Cancel" -command cancel
+    } else {
+	label $t.msg -text "Loading installation from archive ..." \
+	    -font {Helvetica 14}
+	button $t.btn -width 8 -text "Cancel" -pady 2 -command cancel
+    }
+
+    grid $t.msg -sticky ew -padx 6 -pady 4
+    # At the moment, it appears that loading from the starkit starves the
+    # event loop, so showing the Cancel button is pointless
+    #grid $t.btn -sticky e -padx 6 -pady 6
+
+    wm resizable $t 0 0
+    catch {tk::PlaceWindow $t center}
+    wm deiconify $t
+    raise $t
+    update
+}
+if {[info exists starkit::topdir]} {
+    working
+}
+
+package require BWidget
+if {$::tcl_version < 8.5} {
+    package require tile
+}
+
+# Make BWidgets use tile themed widgets
+Widget::theme 1
+
+## package require comm ; puts "COMM: [comm::comm self]"
+
+proc main {} {
+    destroy .working
+    wm protocol . WM_DELETE_WINDOW cancel
+
+    if {$::AT(DEBUG)} {
+	wm title . "$::AT(Company) $::AT(NAME) $::AT(VERSION) (Debug) Installer"
+    } else {
+	wm title . "$::AT(Company) $::AT(NAME) $::AT(VERSION) Installer"
+    }
+
+    # Set some defaults we want to use
+    option add *Scrollbar.highlightthickness 1
+    option add *Text.borderWidth 0
+    option add *Text.highlightthickness 0
+
+    # Read the logo and create an image from it.
+    # FIX: We need the version of the Tcl that we are installing, not
+    # that of the installer, which may differ.
+    #set inst_version [string range $::AT(VERSION) 0 2]
+    set file [file join $::SCRIPT_DIR install_images banner.gif]
+    if {![file exists $file]} {
+	return -code error "Logo file missing"
+    }
+    image create photo LOGO -file $file
+    set file [file join $::SCRIPT_DIR install_images banner_upsell.gif]
+    if {![file exists $file]} {
+	return -code error "Logo upsell file missing"
+    }
+    image create photo LOGO_UPSELL -file $file
+
+    set sep  [ttk::separator .sep -orient horizontal]
+    set left [ttk::frame .left]
+    set width 0
+    if {$::tcl_version > 8.4} {
+	set width [expr {[font measure TkFixedFont a]*79}]
+    }
+    set ::BASE [PagesManager .right -height 150 -width $width]
+    set ::BTNS [ttk::frame .btns]
+    set ::LOGOBTN [ttk::label $left.logo -image LOGO]
+
+    pack $left.logo -expand 0 -fill both -side top
+
+    grid $left $::BASE -sticky news
+    grid $sep -columnspan 2 -sticky ew
+    grid $::BTNS -columnspan 2 -sticky ew
+    grid columnconfigure $::BTNS 0 -weight 1
+    grid columnconfigure . 1 -weight 1
+    grid rowconfigure    . 0 -weight 1
+
+    set ::CANCEL [ttk::button $::BTNS.cncl -text "Cancel" \
+		      -command { cancel }]
+    set ::NEXT   [ttk::button $::BTNS.next -text "Next >" \
+		      -command {set ::WAIT 1}]
+    set ::BACK   [ttk::button $::BTNS.back -text "< Back" \
+		      -command {set ::WAIT -1}]
+
+    grid $::BACK $::NEXT $::CANCEL -sticky e -padx 6 -pady 8
+    grid configure $::BACK -padx 0
+    if {$::tcl_version > 8.3} {
+	grid configure $::NEXT -padx {0 6}
+    }
+
+    # By default, invoke the Next button on <Return>
+    bind . <Key-Return> { next }
+
+    # Magic debug console invocation
+    bind . <Triple-3> { catch {console show} }
+
+    # Initial license acceptance parameter
+    set ::ACCEPT 0
+    # Default install directory
+
+    if {$::auto} {
+	# Auto accepts the license implicitly.
+
+	set ::ACCEPT 1
+
+	# Standard configuration when doing a fully automatic
+	# installation. Partially influenced by command line
+	# options.
+
+	set ::INSTALL_DIR  $::autocfg(installdir)
+	set ::DEMO_DIR     $::autocfg(demodir)
+	set ::RUNTIME_DIR  $::autocfg(runtimedir)
+	set ::INSTALL_MODE $::autocfg(mode)
+	set ::INSTALL_SEED $::autocfg(repo)
+    } else {
+	set ::INSTALL_DIR [default_installdir]
+    }
+
+    # Default install error message
+    set ::ERRMSG ""
+
+    if {0} {
+	# Bugzilla 19731 ... 
+	if {[string equal "windows" $::tcl_platform(platform)]} {
+	    set ::ADMIN [has_admin_permissions]
+	} else {
+	    set ::ADMIN 1 ; # Fake for unix
+	}
+    }
+
+    # Note: The procedures open and manipulate the user interface.
+    # They use [vwait] to enter the eventloop where needed so that
+    # sequencing control is not taken from [main].
+
+    if {$::auto} {
+	# Automatic configuration, skip the config pages, jump
+	# directly to the execution of the installation.  We still
+	# have to auto-click the 'NEXT' button to actually start the
+	# install. For this we hook into 'wait_next'.
+
+	set state 9
+    } else {
+	# Manual configuration, go through all pages.
+	set state 1
+    }
+
+    while {$state} {
+	#puts =$state
+	switch -exact $state {
+	    1 { incr state [intro $::BASE] }
+	    2 { incr state [license $::BASE] }
+	    3 {
+		# This page is always skipped when backstepping
+		# from get_installdir.
+		incr state [check_previous_install $::BASE]
+	    }
+	    4 {
+		incr state [get_installdir $::BASE]
+		# Note: The check of the installdir this page performs
+		# after the selection has been accepted my cause the
+		# overinstall check to be skipped (by incrementing the
+		# state by 2).
+	    }
+	    5 { incr state [overinstall $::BASE] }
+	    6 { incr state [get_demodir $::BASE] }
+	    7 {
+		# This page is always skipped when backstepping from [install_ready]
+		if {[string equal $::tcl_platform(platform) windows]} {
+		    # This is not relevant for windows. Therefore skip the page.
+		    incr state
+		} else {
+		    incr state [get_runtimedir $::BASE]
+		}
+	    }
+	    8 {
+		incr state [seed_repository $::BASE]
+	    }
+	    9 {	incr state [install_ready $::BASE] }
+	    10 {
+		#puts Done
+		exit 0
+	    }
+	    default {
+		return -code error "Unknown run state \"$state\""
+	    }
+	}
+    }
+    #puts =$state
+}
+
+# ----------------------------------------------
+
+proc intro {pages} {
+    set pname intro
+    set page [$pages getframe $pname]
+
+    set welcome_msg $::WELCOME
+    set next 1
+
+    if {![winfo exists $page]} {
+	# This check has to be done only once.
+	# And if there is trouble there is neither next nor
+	# backstepping from a later page.
+
+	#puts mode/$::AT(MODE)
+
+	set page [$pages add $pname]
+
+	set sw [ScrolledWindow $page.msg -auto vertical -scrollbar vertical]
+
+	set t [text $page.msg.t \
+		   -wrap word -tabs {5m 10m 28m 40m 55m 65m 80m} \
+		   -width 80 -height 8 -background [. cget -background]]
+
+	$sw setwidget $t
+
+	if {[string match "log *" $welcome_msg]} {
+	    set ::LOGWIN $t
+	    init_tags    $t
+	    eval $welcome_msg
+	    set ::LOGWIN {}
+	} else {
+	    $t insert end $welcome_msg
+	}
+
+	$t configure -state disabled
+
+	grid $page.msg -sticky news -padx 4 -pady 4
+	grid rowconfigure    $page 0 -weight 1
+	grid columnconfigure $page 0 -weight 1
+
+	#$pages compute_size
+    }
+    $pages raise $pname
+
+    # Return value to move to next state, no BACK button for this one
+
+    if {$next} {
+	return [wait_next 0]
+    } else {
+	return [wait_next 0 0 "Exit"]
+    }
+}
+
+proc init_tags {tw} {
+    $tw tag configure error   -background #EE5555
+    $tw tag configure warning -background yellow
+
+    if {$::tcl_platform(platform) == "windows"} {
+	$tw tag configure hype \
+	    -background "#edeadb" -borderwidth 1 -relief sunken
+	$tw tag configure note \
+	    -background lightyellow \
+	    -borderwidth 1 -relief sunken
+    } else {
+	$tw tag configure hype \
+	    -background white   -borderwidth 1 -relief sunken
+	$tw tag configure note \
+	    -background lightyellow  \
+	    -borderwidth 1 -relief sunken
+    }
+    $tw tag configure url      -background lightblue -relief flat \
+	-borderwidth 1
+    $tw tag configure heading  -font {helvetica 12 bold}
+    $tw tag configure emphasis -font {helvetica  8 bold}
+    return
+}
+
+proc license_ok {} {
+    $::NEXT configure -state [expr {$::ACCEPT ? "normal" : "disabled"}]
+}
+
+proc disable_next {} {
+    $::NEXT configure -state disabled
+}
+
+proc license {pages} {
+    set pname license
+    set page [$pages getframe $pname]
+    if {![winfo exists $page]} {
+	set page [$pages add $pname]
+	grid [ScrolledWindow $page.s -managed 0 -bd 1 -relief sunken] \
+	    -sticky news -padx 4 -pady 4
+	set tw [text $page.s.t -height 5 -wrap word]
+	$page.s setwidget $tw
+
+	ttk::radiobutton $page.ok -variable ::ACCEPT -value 1 \
+	    -command license_ok \
+	    -text "I accept the terms in the License Agreement"
+	ttk::radiobutton $page.no -variable ::ACCEPT -value 0 \
+	    -command license_ok \
+	    -text "I do not accept the terms in the License Agreement"
+	grid $page.ok -stick we -padx 4
+	grid $page.no -stick we -padx 4
+
+	grid columnconfigure $page 0 -weight 1
+	grid rowconfigure    $page 0 -weight 1
+
+	$tw insert end [license_text]
+	$tw configure -state disabled
+
+	# Accept focus even when disabled
+	bind $tw <1>		{ focus %W }
+	bind $tw <Key-Return>	{ next }
+
+	# On windows this resizes the installer window, causing a gap
+	# between the bottom of the logo and the separator, seemingly
+	# because of different vertical sizes for the scroll window
+	# and the radio buttons.
+
+	#$pages compute_size
+    }
+    after idle license_ok
+    $pages raise $pname
+
+    # Return value to move to next state
+    return [wait_next]
+}
+
+# ----------------------------------------------
+# INSTALLATION CHECK ROUTINES
+# ----------------------------------------------
+
+
+proc cinst_page {pages msg} {
+    if {[string length $msg]} {
+	set page [$pages getframe cinst]
+	if {![winfo exists $page]} {
+	    set page [$pages add cinst]
+	    ttk::label $page.msg -anchor nw -justify left -width 70
+	    grid $page.msg -sticky new -padx 8 -pady 4
+	    grid rowconfigure $page 0 -weight 1
+	    grid columnconfig $page 0 -weight 1
+	}
+	$page.msg configure -text $msg
+	$pages raise cinst
+
+	set res [wait_next]
+	catch {destroy $::BTNS.unst}
+	return $res
+    }
+
+    return 1
+}
+
+proc lookfor_previous_install {pages} {
+    # This procedure is similar to ''check_previous_install'' (see
+    # after this proc). Instead of asking to uninstall a previous
+    # installation it wants to have such. This is used by the
+    # 'lite'  distribution to find the ActiveTcl installation to
+    # upgrade.
+
+    # Note that in contrast to ''check_previous_install'' this
+    # procedure does not constitute its own page. It is called
+    # by the ''intro'' page procedure and returns an error code
+    # (0 = error, 1 = ok) and a message. The message can be set
+    # even if there are no problems.
+
+    # We can't do this for Unix. For these platforms the check is
+    # done after querying the user for a directory.
+
+    if {![string equal "windows" $::tcl_platform(platform)]} { return {1 ""} }
+    set ap [admin_possible]
+
+    if {
+	[locate_component TclDevKit 1 ver key] ||
+	[locate_component TclDevKit 0 ver key]
+    } {
+	# We have Tcl/DevKit already, no need to install it.
+
+	set msg "$::AT(PGROUP) $ver is already installed. \
+		\nIt is not possible to install $::AT(PGROUP) $::AT(VERSION)."
+	set next 0
+    } elseif {
+	!($ap && [locate_component ActiveTcl [set admin 1] ver key]) &&
+	![locate_component ActiveTcl [set admin 0] ver key]
+    } {
+	# There is no ActiveTcl installed. Lite cannot be installed.
+
+	# FIXME: We might want to check for an installation
+	# of Tcl/DevKit to give a more accurate error message.
+
+	set msg "No installation of ActiveTcl found. \
+		\nIt is not possible to install $::AT(NAME)."
+	set next 0
+    } else {
+	# ActiveTcl found, but is it ok too ?
+
+	if {[catch {registry get "$key\\$ver" ""} verdir]} {
+	    # This means that Lite should not be installed, it
+	    # would mean trouble.
+
+	    set msg "Previously installed version \"$ver\"\
+		    partially uninstalled.\
+		    It is not possible to use \"$::AT(NAME)\"."
+	    set next 0
+	} elseif {[string match "8.3.3.2" $ver]} {
+	    set msg "You are currently using ActiveTcl $ver.\
+		    \n\t(installed in $verdir)\
+		    \n\n$::AT(NAME) $::AT(VERSION) cannot be used\
+		    with this installation.\nPlease install\
+		    ActiveTcl 8.3.4.1 or higher."
+	    set next 0
+	} elseif {
+	    ([regexp -all {\.} $ver] == 3) &&
+	    [package vsatisfies $ver 8.3.3.2]
+	} {
+	    # It is of type M.m.p.build and is >= 8.3.3.2
+	    # If it satisfies 8.3.4.1. installation may proceed
+
+	    if {[package vsatisfies $ver 8.3.4.1]} {
+		set msg "Upgrading ActiveTcl $ver \
+			(installed in $verdir)\nusing\
+			$::AT(NAME) $::AT(VERSION)"
+		# Use the location of ActiveTcl for our installation too.
+		set ::INSTALL_DIR $verdir
+	    } else {
+		set msg "You are currently using ActiveTcl $ver.\
+			\n\t(installed in $verdir)\
+			\n\n$::AT(NAME) $::AT(VERSION) cannot be used\
+			with this installation. Please install\
+			ActiveTcl 8.3.4.1 or higher."
+		set next 0
+	    }
+	} else {
+	    set msg "Unrecognized installed ActiveTcl version \"$ver\".\
+		    \n\n$::AT(NAME) $::AT(VERSION) cannot be used\
+		    with this installation."
+	    set next 0
+	}
+    }
+
+    ## The checking is done, now show the results.
+
+    if {![string length $msg]} {
+	set msg "Internal error, no message was set"
+	set next 0
+    }
+
+    if {$next} {
+	# Install is ok. Set the mode according to the
+	# installation we found.
+
+	if {!$admin} {
+	    set ::INSTALL_MODE user
+	} else {
+	    set ::INSTALL_MODE admin
+	}
+    }
+
+    return [list $next $msg]
+}
+
+proc check_previous_install {pages} {
+    # The purpose of this is to verify how we will interact with
+    # previous installations.  At this point, it only helps uninstall
+    # ActiveTcl 8.3.3.2 since that had no uninstaller.
+
+    if {![string equal "windows" $::tcl_platform(platform)]} { return 1 }
+
+    package require registry
+
+    set msg ""
+    set found [locate_component $::AT(PGROUP) \
+	    [string equal $::INSTALL_MODE admin] \
+	    ver key]
+    set recuninstall 0
+
+    if {$found} {
+	if {[catch {registry get "$key\\$ver" ""} verdir]} {
+	    set msg "Previously installed version \"$ver\"\
+		    partially uninstalled."
+	} elseif {[string equal $::AT(MODE) normal] && [string match "8.3.3.2" $ver]} {
+	    set msg "You are currently using a previous install\
+		    of $::AT(PGROUP) $ver.\
+		    \n\t(installed in $verdir)\
+		    \n\nDo you want to uninstall this before continuing?"
+
+	    ttk::button $::BTNS.unst -text "Uninstall 8.3.3.2" \
+		-command [subst {
+		    uninstall-8.3.3.2 [list [file join $verdir]]
+		    # We restart this screen to start the process over.
+		    destroy $::BTNS.unst
+		    # The value one means continue after finishing uninstall
+		    set ::WAIT 1
+		}]
+	    grid $::BTNS.unst -row 0
+	} elseif {[regexp -all {\.} $ver] == 3} {
+	    if {[string equal $::AT(MODE) normal] && [package vsatisfies $ver 8.3.3.2]} {
+		# It is of type M.m.p.build and is >= 8.3.3.2
+		#
+		set msg "You are currently using a previous install\
+			of $::AT(PGROUP) $ver.\
+			\n\t(installed in $verdir)\
+			\n\It is recommended that you uninstall this before\
+			continuing."
+		set recuninstall 1
+	    } elseif {[string equal $::AT(MODE) pro]} {
+		if {
+		    [package vsatisfies $ver 1.5.0.1] ||
+		    [package vsatisfies $ver 2.5] ||
+		    [package vsatisfies $ver 3.0] ||
+		    [package vsatisfies $ver 4.0] ||
+		    [package vsatisfies $ver 5.0]
+		} {
+		    # It is of type M.m.p.build and is >= 1.5.0.1, >= 2.5, >= 3.0, 4.0, 5.0
+		    #
+		    set msg "You are currently using a previous install\
+			    of $::AT(PGROUP) $ver.\
+			    \n\t(installed in $verdir)\
+			    \n\It is recommended that you uninstall this before\
+			    continuing."
+		    set recuninstall 1
+		} else {
+		    set msg "Unrecognized installed $::AT(PGROUP) version \"$ver\"."
+		}
+	    } else {
+		    set msg "Unrecognized installed $::AT(PGROUP) version \"$ver\"."
+	    }
+	} elseif {[regexp -all {\.} $ver] == 2} {
+	    if {[string equal $::AT(MODE) pro]} {
+		if {
+		    [package vsatisfies $ver 2.5] ||
+		    [package vsatisfies $ver 3.0] ||
+		    [package vsatisfies $ver 4.0] ||
+		    [package vsatisfies $ver 5.0]
+		} {
+		    # It is of type M.m.p and is >= 2.5, >= 3.0, 4.0, 5.0
+		    # Example: 2.6.1
+		    #
+		    set msg "You are currently using a previous install\
+			    of $::AT(PGROUP) $ver.\
+			    \n\t(installed in $verdir)\
+			    \n\It is recommended that you uninstall this before\
+			    continuing."
+		    set recuninstall 1
+		} else {
+		    set msg "Unrecognized installed $::AT(PGROUP) version \"$ver\"."
+		}
+	    } else {
+		    set msg "Unrecognized installed $::AT(PGROUP) version \"$ver\"."
+	    }
+	} elseif {[regexp -all {\.} $ver] == 1} {
+	    # Bugzilla 19735 ...
+	    # Version is of type M.n . First product with that number of dots so "TclDevKit 2.0"
+
+	    if {[string equal $::AT(MODE) pro]} {
+		if {
+		    [package vsatisfies $ver 2.0] ||
+		    [package vsatisfies $ver 3.0] ||
+		    [package vsatisfies $ver 4.0] ||
+		    [package vsatisfies $ver 5.0]
+		} {
+		    # It is of type M.n and is >= 2.0, 3.0, 4.0, 5.0
+		    #
+		    set msg "You are currently using a previous install\
+			    of $::AT(PGROUP) $ver.\
+			    \n\t(installed in $verdir)\
+			    \n\It is recommended that you uninstall this before\
+			    continuing."
+		    set recuninstall 1
+		} else {
+		    set msg "Unrecognized installed $::AT(PGROUP) version \"$ver\"."
+		}
+	    } else {
+		set msg "Unrecognized installed $::AT(PGROUP) version \"$ver\"."
+	    }
+	} else {
+	    set msg "Unrecognized installed $::AT(PGROUP) version \"$ver\"."
+	}
+    }
+
+    if {
+	$recuninstall &&
+	([package vcompare $::AT(VERSION) 8.5] >= 0) &&
+	([package vcompare $ver           8.5] < 0)  &&
+	([package vcompare $ver           8.4] >= 0)
+    } {
+	# The current distribution is 8.5+, and the previously
+	# installed distribution is 8.4+, but not 8.5. This means that
+	# the current distribution can take advantage of the packages
+	# in the previous distribution. Replace the recommendation to
+	# uninstall the previous with a recommendation to install into
+	# the same directory.
+
+	set    msg ""
+	append msg "You are currently using a previous install of $::AT(PGROUP) $ver.\n"
+	append msg "\t(installed in $verdir)\n\n"
+	append msg "It is recommended that you keep it and install this distribution\n"
+	append msg "into the same directory, to take advantage of the packages found\n"
+	append msg "in the existing installation."
+    }
+
+    return [cinst_page $pages $msg]
+}
+
+# ----------------------------------------------
+
+proc browse_dir {e} {
+    set idir [$e get]
+    if {$idir == {}} {
+	set dir [tk_chooseDirectory \
+		     -title "Choose installation directory"]
+    } else {
+	set dir [tk_chooseDirectory \
+		     -title "Choose installation directory" \
+		     -initialdir $idir]
+    }
+    set dir [file nativename $dir]
+    if {[string length $dir]} {
+	$e delete 0 end
+	$e insert end $dir
+    }
+}
+
+proc install_ok {dir} {
+    $::NEXT configure -state [expr {($dir == "")?"disabled":"normal"}]
+    return 1
+}
+
+proc get_installdir {pages} {
+    set pname query
+    set page [$pages getframe $pname]
+    if {![winfo exists $page]} {
+	set page [$pages add $pname]
+
+	# Bugzilla 19731 ... Depending on whether the installing user
+	# has admin privileges are not he is either notified that a
+	# personal installation is performed, or given the choice
+	# between common and personal installations. Default is a
+	# personal installation.
+
+	if {[string equal "windows" $::tcl_platform(platform)]} {
+
+	    set ap [admin_possible]
+	    # Regular installation of a master component.
+	    # We allow mode selection based on the permissions
+	    # for the user.
+
+	    if {!$ap} {
+		set ::INSTALL_MODE user
+	    } else {
+		set ::INSTALL_MODE admin
+	    }
+
+	    # else: component - mode was set according to the
+	    # installation we found earlier (lookfor_...). And that
+	    # search was restricted by the permissions the user had as
+	    # well. I.e. we won't get an admin install even if present
+	    # if the current user has no admin permissions.
+
+	    set ::INSTALL_PATHEXT [pathext_possible]
+	    set ::INSTALL_REG_TCL 1
+	    set ::INSTALL_REG_TBC 1
+
+	    set label "Please specify installation directory and mode."
+	    ttk::label $page.msg -anchor nw -justify left -width 70 \
+		    -text $label
+
+	    ttk::labelframe $page.imode -text "Installation mode"
+	    set area $page.imode
+
+	    if {[string equal "Windows 95" $::tcl_platform(os)]} {
+		set ::INSTALL_MODE admin
+	    }
+
+	    ttk::radiobutton $area.personal -value user \
+		-variable ::INSTALL_MODE -text "Install for current user only"
+	    ttk::radiobutton $area.common   -value admin \
+		-variable ::INSTALL_MODE -text \
+		"Install for all users (requires Administrative privileges)"
+
+	    if {[string equal "Windows 95" $::tcl_platform(os)]} {
+		$area.personal configure -state disabled
+	    }
+	    if {!$ap} {
+		$area.common configure -state disabled
+	    }
+
+	    if {
+		![string equal $::AT(MODE) pro]
+	    } {
+		ttk::labelframe $page.rmode -text "Registry Settings"
+		set rarea $page.rmode
+
+		ttk::checkbutton $rarea.pext -variable ::INSTALL_PATHEXT \
+		    -text "Add \".tcl\" to your executable path extensions (PATHEXT)"
+
+		if {!$::INSTALL_PATHEXT} {
+		    $rarea.pext configure -state disabled
+		}
+
+		ttk::checkbutton $rarea.rtcl -variable ::INSTALL_REG_TCL \
+		    -command [subst {
+			if {\$::INSTALL_REG_TCL} {
+			    $rarea.rtbc configure -state normal
+			} else {
+			    $rarea.rtbc configure -state disabled
+			}
+		    }] \
+		    -text "Associate \".tcl\" extension to ActiveTcl $::AT(tcl_VERSION)"
+
+		ttk::checkbutton $rarea.rtbc -variable ::INSTALL_REG_TBC \
+		    -text "Associate \".tbc\" extension to ActiveTcl $::AT(tcl_VERSION)"
+
+		grid $rarea.pext -sticky new -padx 4
+		grid $rarea.rtcl -sticky new -padx 4
+		grid $rarea.rtbc -sticky new -padx {16 4}
+
+		grid columnconfigure $rarea 0 -weight 1
+	    }
+
+	    grid $area.personal -sticky new -padx 4
+	    grid $area.common   -sticky new -padx 4
+
+	    grid columnconfigure $area 0 -weight 1
+
+	    grid $page.msg   -sticky new -padx 4 -pady 4
+	    grid $page.imode -sticky new -padx 4 -pady 4
+	    if {
+		![string equal $::AT(MODE) pro]
+	    } {
+		grid $page.rmode -sticky new -padx 4 -pady 4
+	    }
+	} else {
+	    ttk::label $page.msg -anchor nw -justify left -width 70 \
+		    -text "Please specify the installation directory."
+	    grid $page.msg -sticky new -padx 4 -pady 4
+	}
+
+	ttk::label $page.errmsg -anchor nw -justify left -foreground red
+
+	ttk::frame $page.dir
+	ttk::entry $page.ent -width 40 -validate key \
+	    -validatecommand { install_ok %P }
+	ttk::button $page.browse -image [Bitmap::get open] \
+	    -command [list browse_dir $page.ent]
+
+	grid $page.errmsg -sticky new -padx 8
+	grid $page.dir -sticky news -padx 4 -pady 2
+
+	grid $page.ent $page.browse -in $page.dir -sticky news
+	grid columnconfigure $page.dir 0 -weight 1
+
+	bind $page.ent <Key-Return> { next }
+
+	set expandRow [expr {[lindex [grid size $page] 1] - 2}]
+	grid rowconfigure    $page $expandRow -weight 1
+	grid columnconfigure $page 0    -weight 1
+    }
+    $pages raise $pname
+
+    focus $page.ent
+    $page.ent delete 0 end
+    $page.ent insert end $::INSTALL_DIR
+
+    after idle [list $page.ent validate]
+
+    if {[string length $::ERRMSG]} {
+	$page.errmsg configure -text $::ERRMSG
+    }
+
+    # -2 means skip over check_previous_install when going back
+    set res [wait_next -2]
+    set ::INSTALL_DIR [file nativename [file normalize [$page.ent get]]]
+
+    set ::DEMO_DIR    [default_demodir $::INSTALL_DIR]
+    set ::RUNTIME_DIR $::INSTALL_DIR
+    if {$res < 0} { return $res }
+
+    ## Here is the place where the entered directory is verified.
+
+    foreach {::INSTALL_DIR ::ERRMSG} [check_installdir $::INSTALL_DIR] {break}
+    if {[string length $::ERRMSG]} {
+	# Something wrong with dir, do this again
+	return 0
+    } elseif {[string length $::AT(InstVersion)]} {
+	# That we are here means that overinstallation was/is allowed.
+	# Moved to next step (overinstall check).
+	set ::ERRMSG ""
+	return 1
+    } else {
+	# Skip the overinstall check
+	set ::ERRMSG ""
+	return 2
+    }
+}
+
+# ----------------------------------------------
+
+proc overinstall {pages} {
+    set page [$pages getframe overinstall]
+    if {![winfo exists $page]} {
+	set page [$pages add overinstall]
+	ttk::label $page.msg -anchor nw -justify left -width 70 \
+		-text [overinstall_warning]
+	grid $page.msg -sticky new -padx 8 -pady 4
+	grid rowconfigure $page 0 -weight 1
+	grid columnconfig $page 0 -weight 1
+    }
+    $pages raise overinstall
+
+    return [wait_next]
+}
+
+# ----------------------------------------------
+
+proc get_demodir {pages} {
+    set pname demos
+    set page [$pages getframe $pname]
+    if {![winfo exists $page]} {
+	set page [$pages add $pname]
+	ttk::label $page.msg -anchor nw -justify left -width 70 \
+		-text "Please specify the demos directory."
+	ttk::label $page.errmsg -anchor nw -justify left -foreground red
+
+	grid $page.msg    -sticky new -padx 4 -pady 4
+	grid $page.errmsg -sticky new -padx 8
+
+	ttk::frame $page.dir
+	ttk::entry $page.ent -width 40 -validate key \
+	    -validatecommand { install_ok %P }
+	ttk::button $page.browse -image [Bitmap::get open] \
+	    -command [list browse_dir $page.ent]
+
+	grid $page.dir -sticky news -padx 4 -pady 2
+	grid $page.ent $page.browse -in $page.dir -sticky news
+	grid columnconfigure $page.dir 0 -weight 1
+
+	grid rowconfigure $page 0 -weight 1
+	grid columnconfig $page 0 -weight 1
+
+	bind $page.ent <Key-Return> { next }
+    }
+    $pages raise $pname
+    focus $page.ent
+
+    $page.ent delete 0 end
+    $page.ent insert end $::DEMO_DIR
+    after idle [list $page.ent validate]
+
+    if {[string length $::ERRMSG]} {
+	$page.errmsg configure -text $::ERRMSG
+    }
+
+    # -2 means skip over overinstall warning when going back
+    set res [wait_next -2]
+    set ::DEMO_DIR [file nativename [file normalize [$page.ent get]]]
+    if {$res < 0} { return $res }
+
+    foreach {::DEMO_DIR ::ERRMSG} [check_demodir $::DEMO_DIR] {break}
+    if {[string length $::ERRMSG]} {
+	# Something wrong with dir, do this again
+	return 0
+    } else {
+	return 1
+    }
+}
+
+# ----------------------------------------------
+
+proc get_runtimedir {pages} {
+    set pname runtime
+    set page [$pages getframe $pname]
+    if {![winfo exists $page]} {
+	set page [$pages add $pname]
+	ttk::label $page.msg -anchor nw -justify left -width 70 \
+		-text "Please specify the runtime installation directory.\n
+	This is the directory the applications will see as
+	their installation directory when searching for
+	packages and libraries, instead of the directory
+	the files were copied to.\n
+	In most circumstances this is the same as the
+	installation directory chosen before."
+
+	ttk::label $page.errmsg -anchor nw -justify left -foreground red
+	grid $page.msg -columnspan 2 -sticky new -padx 4 -pady 4
+	grid $page.errmsg -columnspan 2 -sticky new -padx 8
+
+	ttk::frame $page.dir
+	ttk::entry $page.ent -width 40 -validate key \
+	    -validatecommand { install_ok %P }
+	ttk::button $page.browse -image [Bitmap::get open] \
+	    -command [list browse_dir $page.ent]
+
+	grid $page.dir -sticky news -padx 4 -pady 2
+	grid $page.ent $page.browse -in $page.dir -sticky news
+	grid columnconfigure $page.dir 0 -weight 1
+
+	grid rowconfigure $page 0 -weight 1
+	grid columnconfig $page 0 -weight 1
+
+	bind $page.ent <Key-Return> { next }
+    }
+    $pages raise $pname
+    focus $page.ent
+
+    $page.ent delete 0 end
+    $page.ent insert end $::RUNTIME_DIR
+    after idle [list $page.ent validate]
+
+    if {[string length $::ERRMSG]} {
+	$page.errmsg configure -text $::ERRMSG
+    }
+
+    set res [wait_next]
+    set ::RUNTIME_DIR [file nativename [file normalize [$page.ent get]]]
+    if {$res < 0} { return $res }
+
+    foreach {::RUNTIME_DIR ::ERRMSG} [check_runtimedir $::RUNTIME_DIR] {break}
+    if {[string length $::ERRMSG]} {
+	# Something wrong with dir, do this again
+	return 0
+    } else {
+	return 1
+    }
+}
+
+# ----------------------------------------------
+
+# Path equality. On win we have to "normalize" both sides further to
+# eliminate differences in letter casing and forward vs backward
+# slashes.
+
+if {$::tcl_platform(platform) eq "windows"} {
+    # Windows
+
+    proc peq {pa pb} {
+	string equal -nocase [file nativename $pa] [file nativename $pb]
+    }
+} else {
+    # Unix
+
+    proc peq {pa pb} {
+	string equal $pa $pb
+    }
+}
+
+proc seed_repository {pages} {
+    # state 8
+    if {![file exists $::SCRIPT_DIR/payload/lib/teapot]} {
+	# The distribution has no seed repository, ignore this panel
+	# and skip to the next state. No seed repository will be
+	# installed.
+	set ::INSTALL_SEED existing
+	return 1
+    }
+    if {![file exists $::INSTALL_DIR/lib/teapot]} {
+	# The destination directory has no repository either, ignore
+	# this panel, and skip to the next state. The seed repository
+	# we have will be installed unconditionally, through simple
+	# file copy (install_all handles that)
+	set ::INSTALL_SEED existing
+	return 1
+    }
+
+    # The distribution has a seed repository, and the destination has
+    # a repository as well. We have to ask the user about what to do.
+    # Options given to her:
+
+    # (1) Keep existing repository, ignore seed.
+    # (2) Use seed, and remove existing repository to make way.
+    # (3) Merge seed with existing repository (slow).
+
+    set pname seed_repository
+    set page [$pages getframe $pname]
+
+    if {![winfo exists $page]} {
+	set page [$pages add $pname]
+
+	set    label "This distribution comes with a seed repository, which is found to be in\n"
+	append label "conflict with an existing repository at the chosen destination for the\n"
+	append label "installation. Please specify how to handle this conflict."
+
+	ttk::label $page.msg -anchor nw -justify left -width 70 \
+	    -text $label
+
+	ttk::labelframe $page.cres -text "Conflict resolution"
+	set area $page.cres
+
+	set ::INSTALL_SEED existing
+
+	ttk::radiobutton $area.existing -variable ::INSTALL_SEED -value existing \
+	    -text "Keep the existing repository, and ignore the seed repository"
+	ttk::radiobutton $area.seed    -variable ::INSTALL_SEED  -value seed \
+	    -text "Replace the existing repository with the seed repository"
+	ttk::radiobutton $area.merge    -variable ::INSTALL_SEED -value merge \
+	    -text "Merge the contents of the seed repository into the existing repository"
+
+	grid $page.msg  -sticky new -padx 4 -pady 4
+	grid $page.cres -sticky new -padx 4 -pady 4
+
+	grid $area.existing -sticky new -padx 4
+	grid $area.seed     -sticky new -padx 4
+	grid $area.merge    -sticky new -padx 4
+
+	grid columnconfigure $area 0 -weight 1
+    }
+
+    $pages raise $pname
+
+    set res [wait_next]
+    if {$res < 0} {
+	return -2 ; # skip state 7, get_runtimedir
+	#return $res ; # We are state 8
+    }
+
+    return 1
+}
+
+
+
+proc install_ready {pages} {
+    global tw
+    set pname ready
+    set page [$pages getframe $pname]
+    set firsttime 0
+    if {![winfo exists $page]} {
+	set firsttime 1
+	set page [$pages add $pname]
+	grid [ScrolledWindow $page.s -managed 0 -bd 1 -relief sunken] \
+	    -sticky news -padx 4 -pady 4
+	# make this word wrap to avoid ScrolledWindow infinite loop
+	# scrollbar bug
+	set tw [text $page.s.t -width 20 -height 8 -wrap word]
+	$page.s setwidget $tw
+
+	grid columnconfigure $page 0 -weight 1
+	grid rowconfigure $page 0 -weight 1
+
+	init_tags $tw
+
+	# Accept focus even when disabled
+	bind $tw <1>		{ focus %W }
+	bind $tw <Key-Return>	{ next }
+    }
+
+    $tw configure -state normal
+
+    $tw delete 1.0 end
+    $tw insert 1.0 "Press 'Next' to begin installation\n" "" \
+	"     Installation Directory:\t[file nativename $::INSTALL_DIR]\n"
+
+    # FUTURE: Instead of looking at the mode just query the
+    # FUTURE: distribution if there is a demo dir which requires
+    # FUTURE: installation. Do the same to decide if we should query
+    # FUTURE: the user for installation of demos.
+
+    $tw insert end    "     Demos Directory:\t[file nativename $::DEMO_DIR]\n"
+    set dres [peq $::DEMO_DIR [set drdir [file normalize $::DEMO_DIR]]]
+
+    if {![string equal $::tcl_platform(platform) windows]} {
+	if {[string equal $::INSTALL_DIR $::RUNTIME_DIR]} {
+	    $tw insert end    "     Runtime Directory:\tSee Installation Directory\n"
+	    set rres 1
+	} else {
+	    $tw insert end    "     Runtime Directory:\t[file nativename $::RUNTIME_DIR]\n"
+	    set rres [peq $::RUNTIME_DIR [set rrdir [file normalize $::RUNTIME_DIR]]]
+	}
+    } else {
+	set rres 1
+    }
+    $tw insert end "\n"
+
+    set ires [peq $::INSTALL_DIR/___ [set irdir [file normalize $::INSTALL_DIR/___]]]
+    set irdir [file dirname $irdir]
+
+    if {!$ires || !$rres || !$dres} {
+	$tw insert end    "Note     \n" warning
+	$tw insert end    "\n"          warning
+
+	if {!$ires} {
+	    $tw insert end    "* The chosen installation path contains symbolic\n" warning
+	    $tw insert end    "  links and resolves to\n"                          warning
+	    $tw insert end    "\n"           warning
+	    $tw insert end    "    $irdir\n" warning
+	    $tw insert end    "\n"           warning
+	}
+	if {!$rres} {
+	    $tw insert end    "* The chosen runtime path contains symbolic\n" warning
+	    $tw insert end    "  links and resolves to\n"                     warning
+	    $tw insert end    "\n"           warning
+	    $tw insert end    "    $rrdir\n" warning
+	    $tw insert end    "\n"           warning
+	}
+	if {!$dres} {
+	    $tw insert end    "* The chosen demo path contains symbolic\n" warning
+	    $tw insert end    "  links and resolves to\n"                  warning
+	    $tw insert end    "\n"           warning
+	    $tw insert end    "    $drdir\n" warning
+	    $tw insert end    "\n"           warning
+	}
+
+	$tw insert end    "The patching process will use the chosen paths.\n"  warning
+	$tw insert end    "To use the resolved paths go back and enter them\n" warning
+	$tw insert end    "as desired.\n"                                      warning
+	$tw insert end    "\n"
+    }
+
+    $tw configure -state disabled
+
+    after idle license_ok
+    $pages raise $pname
+    set ::LOGWIN $page.s.t
+
+    set res [wait_next]
+    if {$res < 0} {
+	# The exact target depends on the current combination of
+	# lite/platform: No lite, nor e4win => Standard behaviour
+
+	return -3 ; # skip state 7, get_runtimedir
+	#return $res ; # We are state 9
+    }
+
+    # At this point, there is no going back
+    grid remove $::BACK $::NEXT
+    focus $::CANCEL
+    bind . <Key-Return> { cancel }
+
+    # Change logo to the upsell graphic
+    $::LOGOBTN configure -image LOGO_UPSELL
+
+    if {[file pathtype $::INSTALL_DIR] ne "absolute"} {
+	set ::INSTALL_DIR [file join [pwd] $::INSTALL_DIR]
+    }
+    if {[file pathtype $::DEMO_DIR] ne "absolute"} {
+	set ::DEMO_DIR [file join [pwd] $::DEMO_DIR]
+    }
+    if {[file pathtype $::RUNTIME_DIR] ne "absolute"} {
+	set ::RUNTIME_DIR [file join [pwd] $::RUNTIME_DIR]
+    }
+
+    # Install all the files
+    do_install_modules $::SCRIPT_DIR $::INSTALL_DIR $::DEMO_DIR
+    # Patch files or add registry stuff
+    do_finish $::SCRIPT_DIR $::INSTALL_DIR $::RUNTIME_DIR
+
+    set p [parting_message]
+    if {$p != {}} {
+	log "\n$p"
+    }
+    teapot_message
+    hype_message
+
+    # This only allows exit
+    set ::CONFIRM 0
+    wait_next 0 0 "Finish"
+}
+
+# ----------------------------------------------
+# LOGGING ROUTINE
+# ----------------------------------------------
+
+proc log {msg {typelist ok}} {
+    if {[string length $msg]} {
+	$::LOGWIN configure -state normal
+	$::LOGWIN insert end "$msg\n" $typelist
+	$::LOGWIN see end
+	$::LOGWIN configure -state disabled
+	update
+    }
+}
+
+proc log* {msg {typelist ok}} {
+    if {[string length $msg]} {
+	$::LOGWIN configure -state normal
+	$::LOGWIN insert end "$msg" $typelist
+	$::LOGWIN configure -state disabled
+	update
+    }
+}
+
+proc log_debug {msg} {
+    ## No output of debugging stuff.
+    return
+    if {![info exists ::LOGWIN] || ![winfo exists $::LOGWIN]} {
+	puts stderr $msg
+	return
+    }
+    log $msg hype
+}
+
+proc cmdlineerror {text} {
+    tk_messageBox -parent . -type ok -icon error \
+	-default ok -title "Command line error" \
+	-message "Illegal argument \"$text\""
+    exit 1
+}
+
+# ----------------------------------------------
+# WAIT ROUTINES
+# ----------------------------------------------
+
+proc next {} { $::NEXT invoke }
+
+proc wait_next {{back -1} {next 1} {cancel "Cancel"}} {
+    if {$back} { grid $::BACK } else { grid remove $::BACK }
+    if {$next} { grid $::NEXT } else { grid remove $::NEXT }
+    $::BACK configure -state normal -command [list set ::WAIT $back]
+    $::NEXT configure -state normal -command [list set ::WAIT $next]
+    $::CANCEL configure -text $cancel -state normal -command cancel
+
+    # deiconify needs to be called at the last possible moment, after
+    # all the UI is ready.  It's OK to call it repeatedly.
+    wm deiconify .
+
+    # Code for fully automatic installation. We expect that only the
+    # code for state 9 is called, 'install_ready'. It contains two
+    # invokations of 'wait_next'. The first is performed when the code
+    # waits for the user to start the installation, and the second
+    # when the installation is complete and we are waiting for the
+    # user to close the installer. We use the 'auto' variable to
+    # recognize that we are in the automatic mode, and which of the
+    # two 'wait_next' calls we are in. Based on that we invoke the
+    # appropriate button, after a suitable delay.
+
+    if {$::auto == 1} {
+	# State 9, install_ready, 1st wait_next.
+	# Start installation.
+	after 2000 {$::NEXT invoke}
+	incr ::auto
+    } elseif {$::auto == 2} {
+	# State 9, install_ready, 2nd wait_next.
+	# Finish installation.
+	after 10000 {$::CANCEL invoke}
+    }
+
+    vwait   ::WAIT
+    return $::WAIT
+}
+
+# ----------------------------------------------
+# SPECIAL UNINSTALLER FOR 8.3.3.2
+# ----------------------------------------------
+
+proc uninstall-8.3.3.2 {dir} {
+    # This version came without an INSTALL.LOG
+    # Just be a little brutal in getting rid of it
+    foreach file [list \
+	    $dir/bin/itcl32.dll \
+	    $dir/bin/itk32.dll \
+	    $dir/bin/tcl83.dll \
+	    $dir/bin/tclpip83.dll \
+	    $dir/bin/tclsh83.exe \
+	    $dir/bin/tclx83.dll \
+	    $dir/bin/tk83.dll \
+	    $dir/bin/tkcon.tcl \
+	    $dir/bin/tkx83.dll \
+	    $dir/bin/wish83.exe \
+	    $dir/doc/ActiveTclHelp.chm \
+	    $dir/include \
+	    $dir/lib/bwidget1.3.0 \
+	    $dir/lib/dde1.1 \
+	    $dir/lib/itcl3.2 \
+	    $dir/lib/itk3.2 \
+	    $dir/lib/iwidgets \
+	    $dir/lib/iwidgets3.0.2 \
+	    $dir/lib/reg1.0 \
+	    $dir/lib/tcl8.3 \
+	    $dir/lib/tcllib1.0 \
+	    $dir/lib/tclX8.3 \
+	    $dir/lib/tk8.3 \
+	    $dir/lib/Tktable2.7 \
+	    $dir/lib/tkX8.3 \
+	    $dir/license.terms \
+	    $dir/README.txt \
+	    ] {
+	file delete -force $file
+    }
+    catch {eval file delete -force [glob -nocomplain -directory $dir/lib *.{sh,lib}]}
+    foreach subdir {bin doc include lib} {
+	if {[llength [glob -nocomplain -directory $dir/$subdir *]] == 0} {
+	    file delete -force $dir/$subdir
+	}
+    }
+    if {[llength [glob -nocomplain -directory $dir *]] == 0} {
+	file delete -force $dir
+    }
+    package require registry
+    catch {
+	registry delete \
+		{HKEY_LOCAL_MACHINE\SOFTWARE\ActiveState\ActiveTcl} \
+		"CurrentVersion"
+    }
+    catch {
+	registry delete \
+		{HKEY_LOCAL_MACHINE\SOFTWARE\ActiveState\ActiveTcl\8.3.3.2}
+    }
+    catch {
+	package require dde
+	dde execute progman progman {[DeleteGroup(ActiveState ActiveTcl)]}
+    }
+}
+
+# ----------------------------------------------
+# GO TO IT
+# ----------------------------------------------
+
+set ::SCRIPT_DIR [file dirname [info script]]
+set here [pwd] ; cd $::SCRIPT_DIR ; set ::SCRIPT_DIR [pwd] ; cd $here
+
+if {[catch {
+    source [file join $SCRIPT_DIR install_lib.tcl]
+    docmdline
+    main
+} err]} {
+    puts $err
+    catch {bgerror $err}
+}
+#puts Exiting
+exit
